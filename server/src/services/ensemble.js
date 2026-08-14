@@ -101,6 +101,59 @@ function fixesFromFlags(flags, question) {
   return fixes;
 }
 
+function estimateFromContent(question, structural) {
+  const stem = (question.stem || '').trim();
+  const opts = question.options || [];
+  const optTexts = opts.map((o) => (o.text || '').trim());
+  const fl = structural.flags;
+
+  // Clarity: based on stem quality
+  let clarity = 70;
+  const stemWords = stem.split(/\s+/).length;
+  if (stemWords < 5) clarity -= 25;
+  else if (stemWords < 10) clarity -= 10;
+  else if (stemWords > 25) clarity += 10;
+  if (stem.endsWith('?')) clarity += 5;
+  if (fl.includes('short-stem')) clarity = Math.min(clarity, 35);
+  if (fl.includes('double-negative')) clarity -= 20;
+
+  // Distractors: based on option count, length, and diversity
+  let distractors = 70;
+  if (opts.length < 4) distractors -= 20;
+  if (opts.length < 2) distractors -= 20;
+  const avgOptLen = optTexts.reduce((s, t) => s + t.length, 0) / (optTexts.length || 1);
+  if (avgOptLen < 5) distractors -= 15;
+  else if (avgOptLen > 30) distractors += 10;
+  const optLens = optTexts.map((t) => t.length);
+  const lenVariance = optLens.length > 1
+    ? optLens.reduce((s, l) => s + (l - avgOptLen) ** 2, 0) / optLens.length
+    : 0;
+  if (lenVariance < 10 && optTexts.length >= 4) distractors += 5; // uniform length = well-crafted
+  if (fl.includes('missing-options')) distractors = Math.min(distractors, 30);
+  if (fl.includes('duplicate-answer')) distractors = Math.min(distractors, 25);
+  if (fl.includes('all-none-of-above')) distractors -= 10;
+
+  // Alignment: passage presence and content signals
+  let alignment = 70;
+  if (fl.includes('missing-passage')) alignment = 35;
+  else if (question.passage) {
+    const passageLen = question.passage.trim().length;
+    if (passageLen > 200) alignment += 10;
+    else if (passageLen < 50) alignment -= 10;
+  }
+  if (fl.includes('missing-numerical')) alignment = Math.min(alignment, 35);
+
+  // Difficulty: estimate from stem complexity and option similarity
+  let difficulty = 50;
+  if (stemWords > 30) difficulty += 15;
+  if (/\b(not|except|least|false)\b/i.test(stem)) difficulty += 10;
+  if (avgOptLen > 40) difficulty += 10;
+  if (stemWords < 8 && avgOptLen < 10) difficulty -= 15;
+
+  const clamp = (v) => Math.max(5, Math.min(95, Math.round(v)));
+  return { clarity: clamp(clarity), distractors: clamp(distractors), difficulty: clamp(difficulty), alignment: clamp(alignment) };
+}
+
 function reconcile(question, engineResults, structural) {
   const dedupe = (arr) => [...new Set(arr.filter(Boolean))];
 
@@ -117,16 +170,13 @@ function reconcile(question, engineResults, structural) {
     ...(question.answerKey && consensusAnswer && question.answerKey !== consensusAnswer ? ['answer-key-mismatch'] : []),
   ]);
 
-  // Heuristic-based scores when no engines ran
-  const structuralScore = structural.valid ? 75 : Math.max(20, 75 - structural.flags.length * 15);
+  // Content-aware heuristic scores when no engines ran
+  const heuristic = engineResults.length === 0 ? estimateFromContent(question, structural) : null;
   const scores = {
-    clarity: avg(engineResults.map((r) => r.clarity.score))
-      ?? (structural.flags.includes('short-stem') || structural.flags.includes('double-negative') ? 35 : structuralScore),
-    distractors: avg(engineResults.map((r) => r.distractors.score))
-      ?? (structural.flags.includes('missing-options') || structural.flags.includes('duplicate-answer') ? 30 : structuralScore),
-    difficulty: avg(engineResults.map((r) => r.difficulty.score)) ?? 50,
-    alignment: avg(engineResults.map((r) => r.alignment.score))
-      ?? (structural.flags.includes('missing-passage') || structural.flags.includes('missing-numerical') ? 35 : structuralScore),
+    clarity: avg(engineResults.map((r) => r.clarity.score)) ?? (heuristic?.clarity ?? 50),
+    distractors: avg(engineResults.map((r) => r.distractors.score)) ?? (heuristic?.distractors ?? 50),
+    difficulty: avg(engineResults.map((r) => r.difficulty.score)) ?? (heuristic?.difficulty ?? 50),
+    alignment: avg(engineResults.map((r) => r.alignment.score)) ?? (heuristic?.alignment ?? 50),
   };
   const overall = avg([
     ...engineResults.map((r) => r.verdict.score),
