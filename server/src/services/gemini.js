@@ -81,14 +81,23 @@ async function vertexGenerate(system, prompt, model) {
  */
 async function generate(system, prompt, modelId) {
   const isTuned = typeof modelId === 'string' && modelId.startsWith('projects/');
-  if (isTuned || (capabilities.vertexTuning && !capabilities.gemini)) {
-    return vertexGenerate(system, prompt, modelId || config.vertex.tuneBaseModel);
+  if (isTuned) {
+    try {
+      return await vertexGenerate(system, prompt, modelId);
+    } catch (err) {
+      // Tuned model may be expired/undeployed — fall back to base model via Studio
+      console.warn(`[gemini] Tuned model failed (${err.message}), falling back to base model`);
+      if (capabilities.gemini) {
+        return studioGenerate(system, prompt, config.gemini.model);
+      }
+      return vertexGenerate(system, prompt, config.vertex.tuneBaseModel);
+    }
   }
   if (capabilities.gemini) {
-    return studioGenerate(system, prompt, modelId && !isTuned ? modelId : config.gemini.model);
+    return studioGenerate(system, prompt, config.gemini.model);
   }
-  if (config.vertex.projectId && config.vertex.credentials) {
-    return vertexGenerate(system, prompt, modelId || config.vertex.tuneBaseModel);
+  if (capabilities.vertexTuning) {
+    return vertexGenerate(system, prompt, config.vertex.tuneBaseModel);
   }
   throw new Error('Gemini not configured');
 }

@@ -76,6 +76,31 @@ function majority(values) {
   return best;
 }
 
+const FLAG_FIXES = {
+  'missing-options': 'Add the missing answer options — at least 4 choices (A–D) are expected.',
+  'duplicate-option-key': 'Remove or relabel the duplicate option key so each option has a unique letter.',
+  'duplicate-answer': 'Rewrite duplicate option text so every distractor is distinct.',
+  'missing-key': 'Add a marked answer key to this question.',
+  'answer-key-mismatch': 'Verify the answer key — it does not match any listed option.',
+  'short-stem': 'Expand the question stem to be more specific and self-contained.',
+  'double-negative': 'Rewrite the stem to remove the double negative for clarity.',
+  'all-none-of-above': 'Consider replacing "all/none of the above" with a concrete distractor.',
+  'missing-passage': 'Add the required passage or reading comprehension context for this question.',
+  'missing-numerical': 'Add numerical data or calculation elements as expected by the rubric.',
+};
+
+function fixesFromFlags(flags, question) {
+  const fixes = [];
+  for (const f of flags) {
+    if (FLAG_FIXES[f]) fixes.push(FLAG_FIXES[f]);
+  }
+  if (flags.includes('answer-key-mismatch') && question.answerKey) {
+    const validKeys = (question.options || []).map((o) => o.key);
+    if (validKeys.length) fixes.push(`Valid option keys are: ${validKeys.join(', ')}. Current key "${question.answerKey}" is not among them.`);
+  }
+  return fixes;
+}
+
 function reconcile(question, engineResults, structural) {
   const dedupe = (arr) => [...new Set(arr.filter(Boolean))];
 
@@ -207,7 +232,10 @@ function reconcile(question, engineResults, structural) {
     },
     distractorDetail: engineResults[0]?.distractors.perOption || [],
     flags,
-    fixes: dedupe(engineResults.flatMap((r) => r.fixes)),
+    fixes: dedupe([
+      ...engineResults.flatMap((r) => r.fixes),
+      ...fixesFromFlags(flags, question),
+    ]),
     disagreements,
     reviewReasons,
     verdict: { status, score: overall, confidence },
