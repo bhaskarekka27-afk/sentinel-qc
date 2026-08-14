@@ -108,7 +108,7 @@ function KeyIntegrityRow({ q }) {
           <div className="stat-foot">Marked key</div>
           <span className="ki-key">{ki.markedKey || '—'}</span>
         </div>
-        <ArrowRight size={14} className="muted-3" style={{ alignSelf: 'end', marginBottom: 4 }} />
+        <ArrowRight size={14} className="muted-3" style={{ alignSelf: 'end', marginBottom: 11 }} />
         <div className="ki-cell">
           <div className="stat-foot">Model answer</div>
           <span className="ki-key" style={{ color: mismatch ? 'var(--fail)' : 'var(--pass)' }}>{ki.modelAnswer || '—'}</span>
