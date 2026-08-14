@@ -121,7 +121,23 @@ export function parseQuestionsFromText(text) {
   };
 
   const pushOptions = (segment, target) => {
-    const matches = [...segment.matchAll(/(?:^|\s)\(?([A-Da-d])[).\-]\s+/g)];
+    // Match option patterns: (A) text, A) text, A. text, A- text
+    // Also handles options without parens at line start
+    const matches = [...segment.matchAll(/(?:^|(?<=\s))\(?([A-Da-d])[).\-]\s+/g)];
+    if (matches.length === 0) {
+      // Try tighter pattern: exactly "(A)" style at word boundaries
+      const altMatches = [...segment.matchAll(/\(([A-Da-d])\)\s*/g)];
+      for (let i = 0; i < altMatches.length; i++) {
+        const key = altMatches[i][1].toUpperCase();
+        const start = altMatches[i].index + altMatches[i][0].length;
+        const end = i + 1 < altMatches.length ? altMatches[i + 1].index : segment.length;
+        const optText = segment.slice(start, end).trim();
+        if (optText && !target.some((o) => o.key === key)) {
+          target.push({ key, text: optText });
+        }
+      }
+      return altMatches.length;
+    }
     for (let i = 0; i < matches.length; i++) {
       const key = matches[i][1].toUpperCase();
       const start = matches[i].index + matches[i][0].length;
@@ -208,9 +224,18 @@ export function parseQuestionsFromText(text) {
     }
 
     // Options (line-start, possibly several on one line).
-    if (startsOptions || /\(?[A-D][).\-]\s+/.test(line)) {
+    // Also detect "(A)" style options anywhere in the line
+    if (startsOptions || /\(?[A-Da-d][).\-]\s+/.test(line) || /\([A-Da-d]\)\s*/.test(line)) {
       const n = pushOptions(line, cur.options);
       if (n > 0) continue;
+    }
+
+    // Continuation of a multi-line option: if we already have options and
+    // this line doesn't start a new option or question, append to last option.
+    if (cur.options.length > 0 && !startsOptions && !startsQ) {
+      const last = cur.options[cur.options.length - 1];
+      last.text = (last.text + ' ' + line).trim();
+      continue;
     }
 
     // Otherwise, continuation of the stem.
