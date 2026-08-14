@@ -117,11 +117,16 @@ function reconcile(question, engineResults, structural) {
     ...(question.answerKey && consensusAnswer && question.answerKey !== consensusAnswer ? ['answer-key-mismatch'] : []),
   ]);
 
+  // Heuristic-based scores when no engines ran
+  const structuralScore = structural.valid ? 75 : Math.max(20, 75 - structural.flags.length * 15);
   const scores = {
-    clarity: avg(engineResults.map((r) => r.clarity.score)),
-    distractors: avg(engineResults.map((r) => r.distractors.score)),
-    difficulty: avg(engineResults.map((r) => r.difficulty.score)),
-    alignment: avg(engineResults.map((r) => r.alignment.score)),
+    clarity: avg(engineResults.map((r) => r.clarity.score))
+      ?? (structural.flags.includes('short-stem') || structural.flags.includes('double-negative') ? 35 : structuralScore),
+    distractors: avg(engineResults.map((r) => r.distractors.score))
+      ?? (structural.flags.includes('missing-options') || structural.flags.includes('duplicate-answer') ? 30 : structuralScore),
+    difficulty: avg(engineResults.map((r) => r.difficulty.score)) ?? 50,
+    alignment: avg(engineResults.map((r) => r.alignment.score))
+      ?? (structural.flags.includes('missing-passage') || structural.flags.includes('missing-numerical') ? 35 : structuralScore),
   };
   const overall = avg([
     ...engineResults.map((r) => r.verdict.score),
