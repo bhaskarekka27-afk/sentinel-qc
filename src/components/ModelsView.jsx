@@ -335,8 +335,11 @@ function ExamDetail({ exam, capabilities, onChange }) {
 
   useEffect(() => {
     setRubric(exam.rubric || ''); setName(exam.name); setDesc(exam.description || '');
+  }, [exam.id, exam.rubric, exam.name, exam.description]);
+
+  useEffect(() => {
     api.listJobs(exam.id).then(setJobs).catch(() => {});
-  }, [exam.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [exam.id, exam.gemini?.status]);
 
   const reloadJobs = async () => { setJobs(await api.listJobs(exam.id)); await onChange(); };
 
@@ -369,7 +372,12 @@ function ExamDetail({ exam, capabilities, onChange }) {
     try {
       const job = await api.tune(exam.id);
       await reloadJobs();
-      toast.ok(job.status === 'queued' ? 'Job queued (credentials pending).' : 'Fine-tuning launched.');
+      const msg = job.status === 'succeeded' && job.tunedModel
+        ? 'Existing tuned model found on Vertex — reused instead of retraining.'
+        : job.status === 'queued'
+          ? 'Job queued (credentials pending).'
+          : 'Fine-tuning launched.';
+      toast.ok(msg);
     } catch (e) { toast.err(e.message); }
     finally { setTuning(false); }
   };
@@ -461,6 +469,8 @@ export default function ModelsView({ exams, capabilities, refreshExams }) {
   const [selId, setSelId] = useState(exams[0]?.id || null);
   const [showNew, setShowNew] = useState(false);
   const [nn, setNn] = useState({ name: '', description: '', rubric: '' });
+
+  useEffect(() => { refreshExams(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selected = exams.find((e) => e.id === selId) || exams[0];
 
