@@ -77,9 +77,113 @@ export async function listJobs(examId) {
     .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
+/**
+ * Discover already-completed tuning jobs on Vertex for a given exam slug.
+ * Returns the tuned model endpoint if one exists, null otherwise.
+ */
+async function findExistingTunedModel(examSlug) {
+  if (!capabilities.vertexTuning) return null;
+  try {
+    const allJobs = await geminiEngine.listTuningJobs(`qc-${examSlug}`);
+    const succeeded = allJobs
+      .filter((j) => j.state === 'JOB_STATE_SUCCEEDED' && j.tunedModel?.model)
+      .sort((a, b) => (a.updateTime < b.updateTime ? 1 : -1));
+    return succeeded.length ? { model: succeeded[0].tunedModel.model, jobName: succeeded[0].name } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * On startup, scan Vertex for all completed tuning jobs and sync any
+ * tuned models back into the local exam registry. Avoids retraining
+ * after a fresh deploy when the tuned models already exist on Vertex.
+ */
+export async function syncTunedModelsFromVertex() {
+  if (!capabilities.vertexTuning) return;
+  try {
+    const allJobs = await geminiEngine.listTuningJobs();
+    const succeeded = allJobs.filter((j) => j.state === 'JOB_STATE_SUCCEEDED' && j.tunedModel?.model);
+    if (!succeeded.length) return;
+
+    const { listExams } = await import('./registry.js');
+    const exams = await listExams();
+
+    for (const exam of exams) {
+      if (exam.gemini?.tunedModel) continue;
+      const match = succeeded
+        .filter((j) => j.tunedModelDisplayName?.startsWith(`qc-${exam.slug}`))
+        .sort((a, b) => (a.updateTime < b.updateTime ? 1 : -1))[0];
+      if (match) {
+        const tuned = match.tunedModel.model;
+        await updateExam(exam.id, {
+          gemini: { ...exam.gemini, tunedModel: tuned, status: 'trained' },
+        });
+
+        const now = new Date().toISOString();
+        const existingLocal = (await db.all(JOBS)).find(
+          (j) => j.examId === exam.id && j.tunedModel === tuned,
+        );
+        if (!existingLocal) {
+          await db.insert(JOBS, {
+            id: `job-${nanoid(8)}`,
+            examId: exam.id,
+            provider: 'gemini',
+            exampleCount: 0,
+            status: 'succeeded',
+            vertexJobName: match.name,
+            tunedModel: tuned,
+            datasetUri: match.supervisedTuningSpec?.trainingDatasetUri || null,
+            baseModel: config.vertex.tuneBaseModel,
+            logs: [`[synced] Discovered existing tuned model from Vertex: ${tuned}`],
+            warning: null,
+            error: null,
+            progress: extractProgress(match),
+            createdAt: match.createTime || now,
+            updatedAt: now,
+          });
+        }
+        console.log(`[tuning] Synced existing tuned model for ${exam.slug}: ${tuned}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[tuning] Failed to sync tuned models from Vertex:', err.message);
+  }
+}
+
 export async function launchTuning(examId) {
   const exam = await getExam(examId);
   if (!exam) throw new Error('Exam not found');
+
+  // Check if a tuned model already exists on Vertex for this exam
+  const existing = await findExistingTunedModel(exam.slug);
+  if (existing && !exam.gemini?.tunedModel) {
+    const now = new Date().toISOString();
+    await updateExam(examId, {
+      gemini: { ...exam.gemini, tunedModel: existing.model, status: 'trained' },
+    });
+    const job = {
+      id: `job-${nanoid(8)}`,
+      examId,
+      provider: 'gemini',
+      exampleCount: 0,
+      status: 'succeeded',
+      vertexJobName: existing.jobName,
+      tunedModel: existing.model,
+      datasetUri: null,
+      baseModel: exam.gemini?.baseModel || config.vertex.tuneBaseModel,
+      logs: [
+        `[${now}] Found existing tuned model on Vertex — skipping retrain to save cost.`,
+        `[reused] Model: ${existing.model}`,
+      ],
+      warning: null,
+      error: null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await db.insert(JOBS, job);
+    return job;
+  }
 
   const { jsonl, count } = await buildJsonl(exam);
   const now = new Date().toISOString();

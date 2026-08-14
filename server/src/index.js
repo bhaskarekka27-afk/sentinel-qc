@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config, capabilitySummary } from './config.js';
 import { seedDefaults } from './services/registry.js';
 import { loadStoredCredentials } from './services/credentials.js';
+import { syncTunedModelsFromVertex } from './services/tuning.js';
 import examsRouter from './routes/exams.js';
 import contentRouter from './routes/content.js';
 import settingsRouter from './routes/settings.js';
@@ -43,6 +44,8 @@ app.use((err, req, res, _next) => {
 async function start() {
   loadStoredCredentials();
   await seedDefaults();
+  // Sync tuned models from Vertex in the background (non-blocking)
+  syncTunedModelsFromVertex().catch(() => {});
   app.listen(config.port, () => {
     const caps = capabilitySummary();
     console.log(`\n  Content QC server → http://localhost:${config.port}`);
