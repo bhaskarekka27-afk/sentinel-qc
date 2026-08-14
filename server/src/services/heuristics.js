@@ -7,7 +7,7 @@ import { clampScore } from '../util/json.js';
  */
 
 // ── Structural QC (deterministic) ─────────────────────────────────────
-export function structuralCheck(q) {
+export function structuralCheck(q, rubric) {
   const issues = [];
   const flags = [];
   const options = q.options || [];
@@ -46,6 +46,23 @@ export function structuralCheck(q) {
   if (/\bnot\b.*\bnot\b/i.test(q.stem || '')) {
     issues.push('Possible double negative in stem.');
     flags.push('double-negative');
+  }
+
+  // Rubric-driven checks: detect exam-specific requirements from the rubric text
+  if (rubric) {
+    const r = rubric.toLowerCase();
+    if ((r.includes('passage') || r.includes('comprehension') || r.includes('reading')) && !q.passage) {
+      issues.push('Rubric expects a passage/context but none was found.');
+      flags.push('missing-passage');
+    }
+    if (r.includes('numerical') || r.includes('calculation') || r.includes('quantitative')) {
+      const hasNumbers = /\d/.test(q.stem || '');
+      const optHasNumbers = texts.some((t) => /\d/.test(t));
+      if (!hasNumbers && !optHasNumbers && options.length >= 4) {
+        issues.push('Rubric expects numerical/quantitative content but item has none.');
+        flags.push('missing-numerical');
+      }
+    }
   }
 
   const valid = flags.length === 0;

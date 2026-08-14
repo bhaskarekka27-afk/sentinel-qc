@@ -267,7 +267,7 @@ function QuestionDetail({ q }) {
 
       {tab === 'engines' && (
         <div className="stack" style={{ gap: 10 }}>
-          {q.engines?.length === 0 && !q.engineErrors?.length && <Banner kind="info">Structural-only mode — no LLM engine ran. Add an API key in Settings to enable Gemini / Claude.</Banner>}
+          {q.engines?.length === 0 && !q.engineErrors?.length && <Banner kind="info">{q.structuralNote || 'Structural-only mode — no LLM engine ran. Add an API key in Settings to enable Gemini / Claude.'}</Banner>}
           {q.engines?.map((e) => (
             <div key={e.engine} className="qblock">
               <div className="row-between">

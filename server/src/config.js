@@ -25,7 +25,7 @@ export const config = {
 
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || '',
-    model: process.env.GEMINI_MODEL || 'gemini-3.5-flash',
+    model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     embedModel: process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001',
   },
 
@@ -33,7 +33,7 @@ export const config = {
     projectId: process.env.GCP_PROJECT_ID || '',
     location: process.env.GCP_LOCATION || 'us-central1',
     credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS || '',
-    tuneBaseModel: process.env.VERTEX_TUNE_BASE_MODEL || 'gemini-3.5-flash',
+    tuneBaseModel: process.env.VERTEX_TUNE_BASE_MODEL || 'gemini-2.5-flash',
     bucket: process.env.GCS_BUCKET || '',
   },
 };

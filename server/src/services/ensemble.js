@@ -222,7 +222,7 @@ function reconcile(question, engineResults, structural) {
 }
 
 export async function analyzeQuestion(question, ctx) {
-  const structural = structuralCheck(question);
+  const structural = structuralCheck(question, ctx?.rubric);
   const tasks = [];
   if (geminiEngine.available()) {
     tasks.push(
@@ -246,6 +246,9 @@ export async function analyzeQuestion(question, ctx) {
   const result = reconcile(question, ok, structural);
   result.engineErrors = errors;
   result.mode = ok.length === 0 ? 'structural-only' : ok.length === 1 ? 'single-engine' : 'ensemble';
+  if (ok.length === 0 && ctx?.exam?.name) {
+    result.structuralNote = `Running in structural-only mode — no API keys are active, so the exam-specific rubric for "${ctx.exam.name}" could not be fully applied. Add API keys for differentiated per-exam analysis.`;
+  }
   return result;
 }
 
