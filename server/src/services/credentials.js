@@ -87,6 +87,16 @@ export function updateCredentials(updates) {
 
 export function loadStoredCredentials() {
   const stored = readStored();
+
+  // Environment variables (set in Railway/Render dashboard) take priority
+  // over file-stored credentials — they survive deploys on ephemeral filesystems.
+  const ENV_KEYS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'GCP_PROJECT_ID', 'GOOGLE_APPLICATION_CREDENTIALS', 'GCS_BUCKET'];
+  for (const key of ENV_KEYS) {
+    if (process.env[key] && !stored[key]) {
+      stored[key] = process.env[key];
+    }
+  }
+
   for (const [key, value] of Object.entries(stored)) {
     if (KEY_MAP[key] && value) KEY_MAP[key](value, stored);
   }

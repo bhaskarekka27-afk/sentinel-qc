@@ -16,7 +16,7 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
 
-  dataDir: path.resolve(__dirname, '..', 'data'),
+  dataDir: process.env.DATA_DIR || path.resolve(__dirname, '..', 'data'),
 
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',

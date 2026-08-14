@@ -5,9 +5,15 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    disk:
+      name: qc-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATA_DIR
+        value: /data
       - key: PORT
         sync: false
       - key: GEMINI_API_KEY
