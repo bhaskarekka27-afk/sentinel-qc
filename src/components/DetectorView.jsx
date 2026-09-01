@@ -59,8 +59,8 @@ export default function DetectorView({ capabilities }) {
 
   return (
     <div className="stack">
-      {!capabilities?.gemini && !capabilities?.claude && (
-        <Banner kind="info">No LLM engine configured — detection uses linguistic heuristics (burstiness, lexical diversity, AI-phrase markers). Add a key in Settings to add LLM forensics.</Banner>
+      {!capabilities?.llama && (
+        <Banner kind="info">No LLM engine running — detection uses linguistic heuristics (burstiness, lexical diversity, AI-phrase markers). Start the LLAMA service for LLM forensics.</Banner>
       )}
 
       <div className="split" style={{ gridTemplateColumns: '1fr 1fr' }}>

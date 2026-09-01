@@ -123,7 +123,7 @@ export default function AnalyzeView({ exams, capabilities, refreshAnalyses, onNa
             <span className="badge badge-brand">{singleReport.examName}</span>
             <span className="muted" style={{ fontSize: 13 }}>{singleReport.fileName}</span>
             <span className="chip">{singleReport.mode}</span>
-            {singleReport.usedTunedModel && <span className="chip engine-gemini"><CheckCircle2 size={12} /> tuned model</span>}
+            {singleReport.usedTunedModel && <span className="chip engine-llama"><CheckCircle2 size={12} /> LoRA tuned</span>}
           </div>
           <button className="btn btn-ghost" onClick={reset}><RotateCcw size={15} /> New analysis</button>
         </div>
@@ -178,11 +178,9 @@ export default function AnalyzeView({ exams, capabilities, refreshAnalyses, onNa
   // ── Upload flow ────────────────────────────────────────────────
   return (
     <div className="stack">
-      {!capabilities?.ensemble && (
+      {!capabilities?.llama && (
         <Banner kind="info">
-          {capabilities?.gemini || capabilities?.claude
-            ? 'One engine is active. Enable both Gemini and Claude in Settings for cross-checked ensemble verdicts.'
-            : 'No LLM engine configured — analysis will run deterministic structural + key checks only. Add a key in Settings for full QC.'}
+          No LLM engine running — analysis will run deterministic structural + key checks only. Start the LLAMA service for full QC.
         </Banner>
       )}
 
@@ -197,7 +195,7 @@ export default function AnalyzeView({ exams, capabilities, refreshAnalyses, onNa
             <select className="select" value={examId} onChange={(e) => setExamId(e.target.value)}>
               {exams.map((e) => (
                 <option key={e.id} value={e.id}>
-                  {e.name}{e.gemini?.tunedModel ? ' · tuned' : ''}
+                  {e.name}{e.loraAdapter ? ' · LoRA tuned' : ''}
                 </option>
               ))}
             </select>

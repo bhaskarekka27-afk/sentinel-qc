@@ -1,6 +1,5 @@
 import { clampScore } from '../util/json.js';
-import { geminiEngine } from './gemini.js';
-import { claudeEngine } from './claude.js';
+import { llamaEngine } from './llama.js';
 import { structuralCheck, detectHeuristic } from './heuristics.js';
 
 /**
@@ -307,20 +306,13 @@ function reconcile(question, engineResults, structural) {
 export async function analyzeQuestion(question, ctx) {
   const structural = structuralCheck(question, ctx?.rubric);
   const tasks = [];
-  if (geminiEngine.available()) {
+  const llamaReady = await llamaEngine.available();
+  if (llamaReady) {
     tasks.push(
-      geminiEngine
-        .analyzeQuestion(question, ctx)
-        .then((r) => normalizeQc(r, 'gemini'))
-        .catch((e) => ({ engine: 'gemini', error: e.message })),
-    );
-  }
-  if (claudeEngine.available()) {
-    tasks.push(
-      claudeEngine
-        .analyzeQuestion(question, ctx)
-        .then((r) => normalizeQc(r, 'claude'))
-        .catch((e) => ({ engine: 'claude', error: e.message })),
+      llamaEngine
+        .analyzeQuestion(question, { ...ctx, examSlug: ctx?.exam?.slug })
+        .then((r) => normalizeQc(r, 'llama'))
+        .catch((e) => ({ engine: 'llama', error: e.message })),
     );
   }
   const settled = await Promise.all(tasks);
@@ -328,9 +320,9 @@ export async function analyzeQuestion(question, ctx) {
   const errors = settled.filter((r) => r && r.error);
   const result = reconcile(question, ok, structural);
   result.engineErrors = errors;
-  result.mode = ok.length === 0 ? 'structural-only' : ok.length === 1 ? 'single-engine' : 'ensemble';
+  result.mode = ok.length === 0 ? 'structural-only' : 'single-engine';
   if (ok.length === 0 && ctx?.exam?.name) {
-    result.structuralNote = `Running in structural-only mode — no API keys are active, so the exam-specific rubric for "${ctx.exam.name}" could not be fully applied. Add API keys for differentiated per-exam analysis.`;
+    result.structuralNote = `Running in structural-only mode — the LLAMA service is not running. Start it with: python llama_service/app.py`;
   }
   return result;
 }
@@ -352,11 +344,9 @@ function normalizeDetect(raw, engine) {
 export async function detect(text) {
   const results = [normalizeDetect(detectHeuristic(text), 'heuristic')];
   const tasks = [];
-  if (geminiEngine.available()) {
-    tasks.push(geminiEngine.detect(text).then((r) => normalizeDetect(r, 'gemini')).catch((e) => ({ engine: 'gemini', error: e.message })));
-  }
-  if (claudeEngine.available()) {
-    tasks.push(claudeEngine.detect(text).then((r) => normalizeDetect(r, 'claude')).catch((e) => ({ engine: 'claude', error: e.message })));
+  const llamaReady = await llamaEngine.available();
+  if (llamaReady) {
+    tasks.push(llamaEngine.detect(text).then((r) => normalizeDetect(r, 'llama')).catch((e) => ({ engine: 'llama', error: e.message })));
   }
   const settled = await Promise.all(tasks);
   const ok = settled.filter((r) => r && !r.error);

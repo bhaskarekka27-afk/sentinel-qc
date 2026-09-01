@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import {
   BrainCircuit, Plus, Trash2, Save, UploadCloud, Rocket, RefreshCw, Database,
-  Loader2, Sparkles, Bot, CheckCircle2, Clock, XCircle, BookOpen, Activity,
+  Loader2, CheckCircle2, Clock, XCircle, BookOpen, Activity,
   TrendingUp, Zap, Target,
 } from 'lucide-react';
 import { api } from '../api';
@@ -63,12 +63,12 @@ function JobRow({ examId, job, onChange }) {
     finally { setBusy(false); }
   };
   useEffect(() => {
-    if (!job.vertexJobName || !['running', 'queued'].includes(job.status)) return;
+    if (!['running', 'queued'].includes(job.status)) return;
     const id = setInterval(() => {
       api.refreshJob(examId, job.id).then(() => onChange()).catch(() => {});
     }, 30000);
     return () => clearInterval(id);
-  }, [examId, job.id, job.status, job.vertexJobName, onChange]);
+  }, [examId, job.id, job.status, onChange]);
   return (
     <div className="qblock">
       <div className="row-between">
@@ -79,7 +79,7 @@ function JobRow({ examId, job, onChange }) {
         </div>
         <div className="row" style={{ gap: 8 }}>
           <span className="muted-3" style={{ fontSize: 11 }}>{(job.createdAt || '').slice(0, 16).replace('T', ' ')}</span>
-          {job.vertexJobName && !['succeeded', 'failed', 'trained'].includes(job.status) && (
+          {!['succeeded', 'failed', 'trained'].includes(job.status) && (
             <button className="btn btn-subtle btn-sm" onClick={refresh} disabled={busy}>
               {busy ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
             </button>
@@ -136,7 +136,7 @@ function BenchmarkTab({ exam, capabilities }) {
           Evaluate retrieval quality and learning progress for this vertical's training data.
         </span>
         <div className="row" style={{ gap: 8 }}>
-          {benchmark && (capabilities?.claude || capabilities?.gemini) && (
+          {benchmark && capabilities?.llama && (
             <button className="btn btn-ghost btn-sm" onClick={() => run(true)} disabled={deepRunning || running || exam.exemplarCount < 2}>
               {deepRunning ? <Loader2 size={14} className="spin" /> : <Zap size={14} />} Deep benchmark
             </button>
@@ -339,7 +339,7 @@ function ExamDetail({ exam, capabilities, onChange }) {
 
   useEffect(() => {
     api.listJobs(exam.id).then(setJobs).catch(() => {});
-  }, [exam.id, exam.gemini?.status]);
+  }, [exam.id, exam.loraStatus]);
 
   const reloadJobs = async () => { setJobs(await api.listJobs(exam.id)); await onChange(); };
 
@@ -372,17 +372,17 @@ function ExamDetail({ exam, capabilities, onChange }) {
     try {
       const job = await api.tune(exam.id);
       await reloadJobs();
-      const msg = job.status === 'succeeded' && job.tunedModel
-        ? 'Existing tuned model found on Vertex — reused instead of retraining.'
+      const msg = job.status === 'succeeded' || job.status === 'trained'
+        ? 'Existing LoRA adapter found — reused instead of retraining.'
         : job.status === 'queued'
-          ? 'Job queued (credentials pending).'
-          : 'Fine-tuning launched.';
+          ? 'Job queued.'
+          : 'LoRA fine-tuning launched.';
       toast.ok(msg);
     } catch (e) { toast.err(e.message); }
     finally { setTuning(false); }
   };
 
-  const meta = STATUS_META[exam.gemini?.status] || STATUS_META.untrained;
+  const meta = STATUS_META[exam.loraStatus || 'untrained'] || STATUS_META.untrained;
   const StatusIcon = meta.icon;
 
   return (
@@ -396,8 +396,8 @@ function ExamDetail({ exam, capabilities, onChange }) {
       </div>
 
       <div className="row wrap" style={{ gap: 8, marginBottom: 14 }}>
-        <span className="chip engine-gemini"><Sparkles size={12} /> Gemini {exam.gemini?.tunedModel ? 'tuned' : 'base'}</span>
-        <span className="chip engine-claude"><Bot size={12} /> Claude RAG &middot; {exam.exemplarCount} exemplars</span>
+        <span className="chip engine-llama"><BrainCircuit size={12} /> LLAMA {exam.loraAdapter ? 'LoRA tuned' : 'base'}</span>
+        <span className="chip"><Database size={12} /> {exam.exemplarCount} exemplars</span>
       </div>
 
       <div className="tabs" style={{ marginBottom: 16 }}>
@@ -411,7 +411,7 @@ function ExamDetail({ exam, capabilities, onChange }) {
           <div className="field"><label>Vertical name</label><input className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
           <div className="field"><label>Description</label><input className="input" value={desc} onChange={(e) => setDesc(e.target.value)} /></div>
           <div className="field">
-            <label>QC rubric — injected into both engines to calibrate judgement for this vertical</label>
+            <label>QC rubric — injected into the LLAMA engine to calibrate judgement for this vertical</label>
             <textarea className="textarea" style={{ minHeight: 180 }} value={rubric} onChange={(e) => setRubric(e.target.value)} />
           </div>
           <div className="row" style={{ justifyContent: 'flex-end' }}>
@@ -422,7 +422,7 @@ function ExamDetail({ exam, capabilities, onChange }) {
 
       {tab === 'data' && (
         <div className="stack" style={{ gap: 14 }}>
-          <Banner kind="info">Upload <b>approved</b> gold-standard papers to teach this vertical's model. Approved items become Claude retrieval exemplars and Gemini fine-tuning pairs; <b>rejected</b> items teach what to fail. <b>Multiple files</b> supported.</Banner>
+          <Banner kind="info">Upload <b>approved</b> gold-standard papers to teach this vertical's model. Approved items become retrieval exemplars and LoRA fine-tuning pairs; <b>rejected</b> items teach what to fail. <b>Multiple files</b> supported.</Banner>
           <div className="field">
             <label>Label for uploaded items</label>
             <div className="seg">
@@ -445,11 +445,11 @@ function ExamDetail({ exam, capabilities, onChange }) {
 
       {tab === 'jobs' && (
         <div className="stack" style={{ gap: 14 }}>
-          {!capabilities?.vertexTuning && (
-            <Banner kind="warn">Vertex AI credentials or GCS bucket not configured. Jobs will be <b>queued</b> and activate automatically once creds are added in the server <code>.env</code>. Claude RAG adaptation is already live.</Banner>
+          {!capabilities?.llama && (
+            <Banner kind="warn">LLAMA service not running. Start it to enable LoRA fine-tuning. Structural checks still work.</Banner>
           )}
           <div className="row-between">
-            <span className="muted" style={{ fontSize: 13 }}>Launch a real Gemini supervised tuning job from this vertical's approved data.</span>
+            <span className="muted" style={{ fontSize: 13 }}>Launch a LoRA fine-tuning job from this vertical's approved training data.</span>
             <button className="btn btn-primary" onClick={launchTune} disabled={tuning || exam.exemplarCount === 0}>
               {tuning ? <Loader2 size={15} className="spin" /> : <Rocket size={15} />} Launch tuning
             </button>
@@ -499,7 +499,7 @@ export default function ModelsView({ exams, capabilities, refreshExams }) {
           <button className="btn btn-primary btn-block" onClick={() => setShowNew(true)}><Plus size={16} /> New content vertical</button>
           <div className="stack" style={{ gap: 10 }}>
             {exams.map((e) => {
-              const meta = STATUS_META[e.gemini?.status] || STATUS_META.untrained;
+              const meta = STATUS_META[e.loraStatus || 'untrained'] || STATUS_META.untrained;
               const Icon = meta.icon;
               return (
                 <div key={e.id} className="qblock" style={{ cursor: 'pointer', borderColor: selected?.id === e.id ? 'var(--brand)' : undefined }} onClick={() => setSelId(e.id)}>
