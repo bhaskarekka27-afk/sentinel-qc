@@ -64,9 +64,10 @@ export const api = {
   getAnalysis: (id) => fetch(`/api/analyses/${id}`).then(handle),
   deleteAnalysis: (id) => json('DELETE', `/api/analyses/${id}`),
 
-  // Credentials
+  // Settings
   getCredentials: () => fetch('/api/settings/credentials').then(handle),
   updateCredentials: (updates) => json('PUT', '/api/settings/credentials', updates),
+  llamaStatus: () => fetch('/api/settings/llama-status').then(handle),
 
   // Text extraction (for detector)
   extractText: (file) => {

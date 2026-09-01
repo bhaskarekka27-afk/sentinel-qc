@@ -44,12 +44,10 @@ export default function Dashboard({ analyses, capabilities, refreshAnalyses, onN
 
   return (
     <div className="stack">
-      {!capabilities?.ensemble && (
+      {!capabilities?.llama && (
         <Banner kind="info">
-          <strong>Running in {capabilities?.gemini || capabilities?.claude ? 'single-engine' : 'fallback'} mode.</strong>{' '}
-          {capabilities?.gemini || capabilities?.claude
-            ? 'Enable both Gemini and Claude in Settings for the full dual-engine ensemble.'
-            : 'Add a Gemini or Claude API key in Settings to activate LLM auditing. Structural checks work now.'}
+          <strong>Running in structural-only mode.</strong>{' '}
+          Start the LLAMA service to activate local LLM auditing. Structural checks work now.
         </Banner>
       )}
 

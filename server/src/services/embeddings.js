@@ -1,9 +1,9 @@
-import { config, capabilities } from '../config.js';
+import { config } from '../config.js';
 
 /**
- * Text embeddings for retrieval. Uses Gemini's embedding model when a key is
- * present; otherwise falls back to a deterministic hashed bag-of-words vector
- * so retrieval still works (lexically) with no credentials.
+ * Text embeddings for retrieval. Uses the local LLAMA service's
+ * sentence-transformer model when available; otherwise falls back to
+ * a deterministic hashed bag-of-words vector so retrieval still works.
  */
 const FALLBACK_DIM = 256;
 
@@ -22,29 +22,24 @@ function hashedVector(text) {
   return vec.map((v) => v / norm);
 }
 
-async function geminiEmbed(text) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${config.gemini.embedModel}:embedContent?key=${config.gemini.apiKey}`;
+async function llamaEmbed(text) {
+  const url = `${config.llama.serviceUrl}/embed`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: `models/${config.gemini.embedModel}`,
-      content: { parts: [{ text: text.slice(0, 8000) }] },
-    }),
+    body: JSON.stringify({ text: text.slice(0, 8000) }),
   });
   if (!res.ok) throw new Error(`Embedding failed: ${res.status}`);
-  const json = await res.json();
-  return json.embedding?.values || null;
+  const data = await res.json();
+  return data.vector || null;
 }
 
 export async function embed(text) {
-  if (capabilities.embeddings) {
-    try {
-      const v = await geminiEmbed(text);
-      if (v) return { vector: v, method: 'gemini' };
-    } catch {
-      /* fall through to lexical */
-    }
+  try {
+    const v = await llamaEmbed(text);
+    if (v) return { vector: v, method: 'local' };
+  } catch {
+    /* fall through to lexical */
   }
   return { vector: hashedVector(text), method: 'lexical' };
 }

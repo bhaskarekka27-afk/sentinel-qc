@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, Sparkles, Bot, FlaskConical, X, Info } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, XCircle, BrainCircuit, FlaskConical, X, Info } from 'lucide-react';
 
 // ── Verdict pill ──────────────────────────────────────────────────────
 export function VerdictPill({ status, children }) {
@@ -39,8 +39,7 @@ export function MetricRow({ label, value }) {
 
 // ── Engine chip ───────────────────────────────────────────────────────
 const ENGINE_META = {
-  gemini: { label: 'Gemini', icon: Sparkles },
-  claude: { label: 'Claude', icon: Bot },
+  llama: { label: 'LLAMA', icon: BrainCircuit },
   heuristic: { label: 'Heuristics', icon: FlaskConical },
 };
 export function EngineChip({ engine, suffix }) {
