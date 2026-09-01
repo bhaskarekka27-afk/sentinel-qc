@@ -3,7 +3,7 @@ import { db } from '../store.js';
 import { embed, cosine } from './embeddings.js';
 
 /**
- * Per-exam exemplar store — the substrate of Claude's per-exam "learning".
+ * Per-exam exemplar store — the substrate of per-exam RAG retrieval.
  * Every approved training item becomes a retrievable exemplar carrying the
  * QC team's gold-standard judgement. At analysis time the most similar
  * exemplars for that exam are injected into the prompt (few-shot RAG).

@@ -89,7 +89,7 @@ export async function launchTuning(examId) {
     job.status = 'queued';
     job.logs.push('[queued] LLAMA service not running — start it with: python llama_service/app.py');
     await db.insert(JOBS, job);
-    await updateExam(examId, { gemini: { ...exam.gemini, status: 'queued', lastJobId: job.id } });
+    await updateExam(examId, { loraStatus: 'queued', lastJobId: job.id });
     return job;
   }
 
@@ -113,7 +113,7 @@ export async function launchTuning(examId) {
 
   job.updatedAt = new Date().toISOString();
   await db.insert(JOBS, job);
-  await updateExam(examId, { gemini: { ...exam.gemini, status: job.status, lastJobId: job.id } });
+  await updateExam(examId, { loraStatus: job.status, lastJobId: job.id });
   return job;
 }
 
@@ -138,7 +138,7 @@ export async function refreshJob(jobId) {
       const exam = await getExam(job.examId);
       if (exam) {
         await updateExam(job.examId, {
-          gemini: { ...exam.gemini, tunedModel: remote.adapter_path, status: 'trained', lastJobId: job.id },
+          loraAdapter: remote.adapter_path, loraStatus: 'trained', lastJobId: job.id,
         });
       }
     } else if (remote.status === 'failed') {

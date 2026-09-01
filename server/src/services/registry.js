@@ -5,8 +5,8 @@ import { countExemplars } from './ragStore.js';
 
 /**
  * Exam registry. Each exam is a self-contained content category with its OWN
- * model: a Gemini tuned-model id (once trained) and a Claude RAG exemplar
- * store, plus a QC rubric that calibrates both engines for that vertical.
+ * LoRA adapter (once trained) and a RAG exemplar store, plus a QC rubric
+ * that calibrates the LLAMA engine for that vertical.
  */
 const COLLECTION = 'exams';
 
@@ -46,7 +46,9 @@ function baseExam(seed) {
     description: seed.description || '',
     topics: seed.topics || [],
     rubric: seed.rubric || '',
-    gemini: { tunedModel: null, baseModel: config.vertex.tuneBaseModel, status: 'untrained', lastJobId: null },
+    loraAdapter: null,
+    loraStatus: 'untrained',
+    lastJobId: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -84,7 +86,9 @@ export async function updateExam(id, patch) {
   ['name', 'description', 'topics', 'rubric', 'slug'].forEach((k) => {
     if (patch[k] !== undefined) allowed[k] = patch[k];
   });
-  if (patch.gemini) allowed.gemini = patch.gemini;
+  if (patch.loraAdapter !== undefined) allowed.loraAdapter = patch.loraAdapter;
+  if (patch.loraStatus !== undefined) allowed.loraStatus = patch.loraStatus;
+  if (patch.lastJobId !== undefined) allowed.lastJobId = patch.lastJobId;
   return db.update(COLLECTION, id, allowed);
 }
 
@@ -99,6 +103,6 @@ export async function analysisContext(examId) {
   return {
     exam: { name: exam.name, slug: exam.slug },
     rubric: exam.rubric,
-    modelId: exam.gemini?.tunedModel || null,
+    modelId: exam.loraAdapter || null,
   };
 }
